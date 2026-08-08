@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Message
 import android.util.Log
 import android.view.KeyEvent
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -19,6 +20,17 @@ import androidx.appcompat.app.AppCompatActivity
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+
+    @Volatile
+    private var isNativeMode = false
+    
+    inner class TVInterface {
+        @JavascriptInterface
+        fun setNativeMode(native: Boolean) {
+            isNativeMode = native
+            Log.d("TVWebView", "Native mode set to: $native")
+        }
+    }
 
     private val cursorScript = """
         javascript:(function() {
@@ -45,6 +57,36 @@ class MainActivity : AppCompatActivity() {
             document.body.appendChild(cursor);
             
             window.lastHoveredElem = null;
+            
+            var isNative = false;
+            
+            function enterNativeMode() {
+                isNative = true;
+                cursor.style.display = 'none';
+                if (window.AndroidTV) window.AndroidTV.setNativeMode(true);
+            }
+            
+            function exitNativeMode() {
+                isNative = false;
+                cursor.style.display = 'block';
+                if (window.AndroidTV) window.AndroidTV.setNativeMode(false);
+            }
+            
+            document.addEventListener('keydown', function(e) {
+                if (isNative && e.key === 'ArrowDown') {
+                    setTimeout(function() {
+                        var ae = document.activeElement;
+                        // Exit native mode if focus is lost or moves below the header area
+                        if (!ae || ae === document.body || ae.getBoundingClientRect().bottom > 150) {
+                            exitNativeMode();
+                            cx = window.innerWidth / 2;
+                            cy = Math.max(150, (ae && ae !== document.body) ? ae.getBoundingClientRect().bottom + 20 : 150);
+                            cursor.style.left = cx + 'px';
+                            cursor.style.top = cy + 'px';
+                        }
+                    }, 50);
+                }
+            });
             
             function performScroll(sdx, sdy) {
                 // Try standard scrolling targets without expensive DOM loops
@@ -99,6 +141,11 @@ class MainActivity : AppCompatActivity() {
                 
                 if (sdx !== 0 || sdy !== 0) {
                     performScroll(sdx, sdy);
+                    
+                    // If we tried to scroll up but we are already at the top, switch to native mode for the menu
+                    if (sdy < 0 && window.scrollY <= 10 && cy < 30) {
+                        enterNativeMode();
+                    }
                 }
             };
             
@@ -121,6 +168,8 @@ class MainActivity : AppCompatActivity() {
         
         webView = WebView(this)
         setContentView(webView)
+
+        webView.addJavascriptInterface(TVInterface(), "AndroidTV")
 
         val webSettings: WebSettings = webView.settings
         webSettings.javaScriptEnabled = true
@@ -182,6 +231,11 @@ class MainActivity : AppCompatActivity() {
         val moveAmount = 40
         
         if (event.action == KeyEvent.ACTION_DOWN) {
+            if (isNativeMode) {
+                // In native mode, let the WebView handle the spatial navigation natively
+                return super.dispatchKeyEvent(event)
+            }
+        
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> {
                     webView.evaluateJavascript("window.moveTvCursor(0, -$moveAmount);", null)
@@ -211,6 +265,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } else if (event.action == KeyEvent.ACTION_UP) {
+            if (isNativeMode) {
+                return super.dispatchKeyEvent(event)
+            }
             // Consume ACTION_UP for the same keys to prevent them from bubbling
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP,
