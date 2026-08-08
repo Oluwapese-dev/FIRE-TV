@@ -95,39 +95,54 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl("https://dulo.cx")
     }
 
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (event == null) return super.onKeyDown(keyCode, event)
+    override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
+        if (event == null) return super.dispatchKeyEvent(event)
         
         val moveAmount = 40
         
-        when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_UP -> {
-                webView.evaluateJavascript("window.moveTvCursor(0, -$moveAmount);", null)
-                return true
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    webView.evaluateJavascript("window.moveTvCursor(0, -$moveAmount);", null)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    webView.evaluateJavascript("window.moveTvCursor(0, $moveAmount);", null)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    webView.evaluateJavascript("window.moveTvCursor(-$moveAmount, 0);", null)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    webView.evaluateJavascript("window.moveTvCursor($moveAmount, 0);", null)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    webView.evaluateJavascript("window.clickTvCursor();", null)
+                    return true
+                }
+                KeyEvent.KEYCODE_BACK -> {
+                    if (webView.canGoBack()) {
+                        webView.goBack()
+                        return true
+                    }
+                }
             }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
-                webView.evaluateJavascript("window.moveTvCursor(0, $moveAmount);", null)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                webView.evaluateJavascript("window.moveTvCursor(-$moveAmount, 0);", null)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                webView.evaluateJavascript("window.moveTvCursor($moveAmount, 0);", null)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                webView.evaluateJavascript("window.clickTvCursor();", null)
-                return true
-            }
-            KeyEvent.KEYCODE_BACK -> {
-                if (webView.canGoBack()) {
-                    webView.goBack()
+        } else if (event.action == KeyEvent.ACTION_UP) {
+            // Consume ACTION_UP for the same keys to prevent them from bubbling
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT,
+                KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_DPAD_CENTER,
+                KeyEvent.KEYCODE_ENTER -> {
                     return true
                 }
             }
         }
-        return super.onKeyDown(keyCode, event)
+        
+        return super.dispatchKeyEvent(event)
     }
 }
