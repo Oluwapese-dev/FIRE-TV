@@ -37,6 +37,32 @@ class MainActivity : AppCompatActivity() {
             
             document.body.appendChild(cursor);
             
+            function performScroll(sdx, sdy) {
+                // First try standard window scroll
+                window.scrollBy({top: sdy, left: sdx, behavior: 'smooth'});
+                
+                // Then try to find the specific scrollable container under the cursor
+                var elem = document.elementFromPoint(cx, cy);
+                var curr = elem;
+                while (curr && curr !== document && curr !== document.body) {
+                    if (curr.scrollHeight > curr.clientHeight || curr.scrollWidth > curr.clientWidth) {
+                        var style = window.getComputedStyle(curr);
+                        if ((sdy !== 0 && (style.overflowY === 'auto' || style.overflowY === 'scroll')) || 
+                            (sdx !== 0 && (style.overflowX === 'auto' || style.overflowX === 'scroll'))) {
+                            curr.scrollBy({top: sdy, left: sdx, behavior: 'smooth'});
+                            break;
+                        }
+                    }
+                    curr = curr.parentNode;
+                }
+                
+                // Fallback for common SPA root elements if the above fails
+                var root = document.getElementById('root') || document.getElementById('__next') || document.getElementById('app');
+                if (root) {
+                    root.scrollBy({top: sdy, left: sdx, behavior: 'smooth'});
+                }
+            }
+            
             window.moveTvCursor = function(dx, dy) {
                 cx += dx;
                 cy += dy;
@@ -48,10 +74,16 @@ class MainActivity : AppCompatActivity() {
                 cursor.style.left = cx + 'px';
                 cursor.style.top = cy + 'px';
                 
-                if (cy > window.innerHeight - 60) window.scrollBy({top: 80, behavior: 'smooth'});
-                if (cy < 60) window.scrollBy({top: -80, behavior: 'smooth'});
-                if (cx > window.innerWidth - 60) window.scrollBy({left: 80, behavior: 'smooth'});
-                if (cx < 60) window.scrollBy({left: -80, behavior: 'smooth'});
+                var sdx = 0;
+                var sdy = 0;
+                if (cy > window.innerHeight - 60) sdy = 80;
+                if (cy < 60) sdy = -80;
+                if (cx > window.innerWidth - 60) sdx = 80;
+                if (cx < 60) sdx = -80;
+                
+                if (sdx !== 0 || sdy !== 0) {
+                    performScroll(sdx, sdy);
+                }
             };
             
             window.clickTvCursor = function() {
