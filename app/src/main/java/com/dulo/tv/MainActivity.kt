@@ -12,6 +12,61 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
 
+    private val cursorScript = """
+        javascript:(function() {
+            if (window.tvCursorInjected) return;
+            window.tvCursorInjected = true;
+            
+            var cursor = document.createElement('div');
+            cursor.id = 'tv-cursor';
+            cursor.style.position = 'fixed';
+            cursor.style.width = '20px';
+            cursor.style.height = '20px';
+            cursor.style.backgroundColor = 'rgba(255, 50, 50, 0.8)';
+            cursor.style.border = '2px solid white';
+            cursor.style.borderRadius = '50%';
+            cursor.style.zIndex = '2147483647';
+            cursor.style.pointerEvents = 'none';
+            cursor.style.boxShadow = '0 0 8px rgba(0,0,0,0.6)';
+            cursor.style.transition = 'left 0.05s linear, top 0.05s linear';
+            
+            var cx = window.innerWidth / 2;
+            var cy = window.innerHeight / 2;
+            cursor.style.left = cx + 'px';
+            cursor.style.top = cy + 'px';
+            
+            document.body.appendChild(cursor);
+            
+            window.moveTvCursor = function(dx, dy) {
+                cx += dx;
+                cy += dy;
+                if (cx < 0) cx = 0;
+                if (cx > window.innerWidth) cx = window.innerWidth;
+                if (cy < 0) cy = 0;
+                if (cy > window.innerHeight) cy = window.innerHeight;
+                
+                cursor.style.left = cx + 'px';
+                cursor.style.top = cy + 'px';
+                
+                if (cy > window.innerHeight - 60) window.scrollBy({top: 80, behavior: 'smooth'});
+                if (cy < 60) window.scrollBy({top: -80, behavior: 'smooth'});
+                if (cx > window.innerWidth - 60) window.scrollBy({left: 80, behavior: 'smooth'});
+                if (cx < 60) window.scrollBy({left: -80, behavior: 'smooth'});
+            };
+            
+            window.clickTvCursor = function() {
+                var elem = document.elementFromPoint(cx, cy);
+                if (elem) {
+                    elem.click();
+                    var mousedown = new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy });
+                    var mouseup = new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy });
+                    elem.dispatchEvent(mousedown);
+                    elem.dispatchEvent(mouseup);
+                }
+            };
+        })();
+    """.trimIndent()
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,25 +79,54 @@ class MainActivity : AppCompatActivity() {
         webSettings.domStorageEnabled = true
         webSettings.mediaPlaybackRequiresUserGesture = false
         
-        // This makes sure the mouse toggle and d-pad interactions work smoothly
         webSettings.useWideViewPort = true
         webSettings.loadWithOverviewMode = true
         
-        // Set focusable so D-Pad can interact with elements
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
 
-        webView.webViewClient = WebViewClient()
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                view?.evaluateJavascript(cursorScript, null)
+            }
+        }
         
-        // Load the specified URL
         webView.loadUrl("https://dulo.cx")
     }
 
-    // Handle back button to go back in web history if possible, otherwise exit
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
-            webView.goBack()
-            return true
+        if (event == null) return super.onKeyDown(keyCode, event)
+        
+        val moveAmount = 40
+        
+        when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                webView.evaluateJavascript("window.moveTvCursor(0, -$moveAmount);", null)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                webView.evaluateJavascript("window.moveTvCursor(0, $moveAmount);", null)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                webView.evaluateJavascript("window.moveTvCursor(-$moveAmount, 0);", null)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                webView.evaluateJavascript("window.moveTvCursor($moveAmount, 0);", null)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                webView.evaluateJavascript("window.clickTvCursor();", null)
+                return true
+            }
+            KeyEvent.KEYCODE_BACK -> {
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                    return true
+                }
+            }
         }
         return super.onKeyDown(keyCode, event)
     }
