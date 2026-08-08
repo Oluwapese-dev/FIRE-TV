@@ -49,6 +49,8 @@ class MainActivity : AppCompatActivity() {
             cursor.style.pointerEvents = 'none';
             cursor.style.boxShadow = '0 0 8px rgba(0,0,0,0.6)';
             
+            cursor.style.display = 'none'; // Hidden initially until used
+            
             var cx = window.innerWidth / 2;
             var cy = window.innerHeight / 2;
             cursor.style.left = cx + 'px';
@@ -57,6 +59,13 @@ class MainActivity : AppCompatActivity() {
             document.body.appendChild(cursor);
             
             window.lastHoveredElem = null;
+            
+            // Hide the virtual cursor if a real physical mouse/mouse-toggle is used
+            document.addEventListener('mousemove', function(e) {
+                if (e.isTrusted) {
+                    cursor.style.display = 'none';
+                }
+            });
             
             var isNative = false;
             
@@ -110,6 +119,7 @@ class MainActivity : AppCompatActivity() {
             }
             
             window.moveTvCursor = function(dx, dy) {
+                if (!isNative) cursor.style.display = 'block'; // Show when D-pad is used
                 cx += dx;
                 cy += dy;
                 if (cx < 0) cx = 0;
