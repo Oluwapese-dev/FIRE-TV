@@ -28,7 +28,6 @@ class MainActivity : AppCompatActivity() {
             cursor.style.zIndex = '2147483647';
             cursor.style.pointerEvents = 'none';
             cursor.style.boxShadow = '0 0 8px rgba(0,0,0,0.6)';
-            cursor.style.transition = 'left 0.05s linear, top 0.05s linear';
             
             var cx = window.innerWidth / 2;
             var cy = window.innerHeight / 2;
@@ -37,29 +36,26 @@ class MainActivity : AppCompatActivity() {
             
             document.body.appendChild(cursor);
             
+            window.lastHoveredElem = null;
+            
             function performScroll(sdx, sdy) {
-                // First try standard window scroll
-                window.scrollBy({top: sdy, left: sdx, behavior: 'smooth'});
+                // Try standard scrolling targets without expensive DOM loops
+                var targets = [
+                    window,
+                    document.getElementById('__next'),
+                    document.getElementById('root'),
+                    document.getElementById('app'),
+                    document.body,
+                    document.documentElement
+                ];
                 
-                // Then try to find the specific scrollable container under the cursor
-                var elem = document.elementFromPoint(cx, cy);
-                var curr = elem;
-                while (curr && curr !== document && curr !== document.body) {
-                    if (curr.scrollHeight > curr.clientHeight || curr.scrollWidth > curr.clientWidth) {
-                        var style = window.getComputedStyle(curr);
-                        if ((sdy !== 0 && (style.overflowY === 'auto' || style.overflowY === 'scroll')) || 
-                            (sdx !== 0 && (style.overflowX === 'auto' || style.overflowX === 'scroll'))) {
-                            curr.scrollBy({top: sdy, left: sdx, behavior: 'smooth'});
-                            break;
-                        }
+                for (var i = 0; i < targets.length; i++) {
+                    var t = targets[i];
+                    if (t) {
+                        try {
+                            t.scrollBy({top: sdy, left: sdx, behavior: 'smooth'});
+                        } catch(e) {}
                     }
-                    curr = curr.parentNode;
-                }
-                
-                // Fallback for common SPA root elements if the above fails
-                var root = document.getElementById('root') || document.getElementById('__next') || document.getElementById('app');
-                if (root) {
-                    root.scrollBy({top: sdy, left: sdx, behavior: 'smooth'});
                 }
             }
             
@@ -74,12 +70,24 @@ class MainActivity : AppCompatActivity() {
                 cursor.style.left = cx + 'px';
                 cursor.style.top = cy + 'px';
                 
+                var elem = document.elementFromPoint(cx, cy);
+                if (elem && elem !== window.lastHoveredElem) {
+                    if (window.lastHoveredElem) {
+                        window.lastHoveredElem.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, view: window, clientX: cx, clientY: cy }));
+                        window.lastHoveredElem.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, view: window, clientX: cx, clientY: cy }));
+                    }
+                    elem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, view: window, clientX: cx, clientY: cy }));
+                    elem.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, view: window, clientX: cx, clientY: cy }));
+                    elem.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, view: window, clientX: cx, clientY: cy }));
+                    window.lastHoveredElem = elem;
+                }
+                
                 var sdx = 0;
                 var sdy = 0;
-                if (cy > window.innerHeight - 60) sdy = 80;
-                if (cy < 60) sdy = -80;
-                if (cx > window.innerWidth - 60) sdx = 80;
-                if (cx < 60) sdx = -80;
+                if (cy > window.innerHeight - 60) sdy = 60;
+                if (cy < 60) sdy = -60;
+                if (cx > window.innerWidth - 60) sdx = 60;
+                if (cx < 60) sdx = -60;
                 
                 if (sdx !== 0 || sdy !== 0) {
                     performScroll(sdx, sdy);
@@ -90,10 +98,10 @@ class MainActivity : AppCompatActivity() {
                 var elem = document.elementFromPoint(cx, cy);
                 if (elem) {
                     elem.click();
-                    var mousedown = new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy });
-                    var mouseup = new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy });
-                    elem.dispatchEvent(mousedown);
-                    elem.dispatchEvent(mouseup);
+                    var events = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+                    events.forEach(function(evt) {
+                        elem.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy }));
+                    });
                 }
             };
         })();
