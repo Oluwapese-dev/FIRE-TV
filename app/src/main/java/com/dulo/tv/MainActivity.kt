@@ -1,8 +1,16 @@
 package com.dulo.tv
 
 import android.annotation.SuppressLint
+import android.content.ComponentCallbacks2
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.os.Message
+import android.util.Log
 import android.view.KeyEvent
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -119,8 +127,8 @@ class MainActivity : AppCompatActivity() {
         webSettings.domStorageEnabled = true
         webSettings.mediaPlaybackRequiresUserGesture = false
         
-        // Force desktop mode
-        webSettings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        // Support multiple windows to allow WebChromeClient to intercept popups safely
+        webSettings.setSupportMultipleWindows(true)
         webSettings.useWideViewPort = true
         webSettings.loadWithOverviewMode = true
         
@@ -131,6 +139,37 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 view?.evaluateJavascript(cursorScript, null)
+            }
+            
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url?.toString() ?: return false
+                // Block intents that try to open external apps (Play Store, etc.) which crash Fire TV
+                if (url.startsWith("intent://") || url.startsWith("market://") || url.startsWith("whatsapp://")) {
+                    Log.d("TVWebView", "Blocked external intent: ${url}")
+                    return true // Consume the event, don't load
+                }
+                return false
+            }
+            
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                super.onReceivedError(view, request, error)
+                // Silently ignore errors from ad networks to prevent breaking the main UI
+                Log.d("TVWebView", "Resource error: ${error?.description}")
+            }
+            
+            override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                // If the WebView renderer crashes (e.g. out of memory due to ads)
+                Log.e("TVWebView", "Renderer crashed")
+                return true
+            }
+        }
+        
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
+                // Intercept popups (ads) and SILENTLY block them.
+                Log.d("TVWebView", "Blocked popup window attempt")
+                // By returning false and not doing anything with resultMsg, the popup is discarded
+                return false
             }
         }
         
@@ -186,5 +225,14 @@ class MainActivity : AppCompatActivity() {
         }
         
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_MODERATE) {
+            // Free up memory aggressively when OS is low on RAM
+            Log.d("TVWebView", "Trimming memory")
+            webView.clearCache(false)
+        }
     }
 }
