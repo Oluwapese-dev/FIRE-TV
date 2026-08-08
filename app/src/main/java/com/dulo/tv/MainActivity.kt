@@ -67,9 +67,9 @@ class MainActivity : AppCompatActivity() {
                 cx += dx;
                 cy += dy;
                 if (cx < 0) cx = 0;
-                if (cx > window.innerWidth) cx = window.innerWidth;
+                if (cx > window.innerWidth - 1) cx = window.innerWidth - 1;
                 if (cy < 0) cy = 0;
-                if (cy > window.innerHeight) cy = window.innerHeight;
+                if (cy > window.innerHeight - 1) cy = window.innerHeight - 1;
                 
                 cursor.style.left = cx + 'px';
                 cursor.style.top = cy + 'px';
@@ -111,6 +111,8 @@ class MainActivity : AppCompatActivity() {
         webSettings.domStorageEnabled = true
         webSettings.mediaPlaybackRequiresUserGesture = false
         
+        // Force desktop mode
+        webSettings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
         webSettings.useWideViewPort = true
         webSettings.loadWithOverviewMode = true
         
